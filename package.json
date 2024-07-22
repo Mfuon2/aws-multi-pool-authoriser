@@ -1,0 +1,16 @@
+{
+  "name": "global_api_gateway_authoriser",
+  "version": "1.0.0",
+  "main": "index.mjs",
+  "scripts": {
+    "dev": "node index.mjs"
+  },
+  "keywords": [],
+  "author": "Mfuon",
+  "license": "ISC",
+  "description": "AWS API gateway authorizer for more than one pool",
+  "dependencies": {
+    "@aws-sdk/client-cognito-identity-provider": "^3.616.0",
+    "aws-jwt-verify": "^4.0.1"
+  }
+}
