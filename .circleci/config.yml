@@ -1,0 +1,159 @@
+version: 2.1
+
+executors:
+  node-executor:
+    docker:
+      - image: cimg/node:21.5.0
+
+jobs:
+  install:
+    executor: node-executor
+    steps:
+      - checkout
+      - run:
+          name: Install dependencies
+          command: npm install
+
+  test:
+    executor: node-executor
+    steps:
+      - checkout
+      - run:
+          name: Run tests. Instead of npm test, do nothing for now
+          command: ls -l
+
+  build:
+    docker:
+      - image: cimg/node:21.5.0
+      # - image: cimg/python:3.8  # Use a Python image that has jq available
+
+    steps:
+      - checkout
+      - run:
+          name: Install dependencies
+          command: |
+            sudo apt-get update
+            sudo apt-get install -y wget unzip jq
+      - run:
+          name: Download AWS CLI
+          command: |
+            wget "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -O awscliv2.zip
+            if ! unzip -t awscliv2.zip; then
+              echo "Downloaded file is not a valid ZIP file"
+              exit 1
+            fi
+      - run:
+          name: Install AWS CLI
+          command: |
+            unzip awscliv2.zip
+            sudo ./aws/install
+
+      - run:
+          name: Package Lambda Function
+          command: |
+            npm install
+            echo "*****"
+            ls -l
+            echo "*****"
+            zip -r function.zip index.mjs package.json node_modules/
+      - run:
+          name: Deploy to AWS Lambda
+          command: |
+            export AWS_ACCESS_KEY_ID=${AWS_DEV_KEY_ID}
+            export AWS_SECRET_ACCESS_KEY=${AWS_DEV_ACCESS_KEY}
+            aws lambda update-function-code \
+              --function-name global_api_gateway_authoriser \
+              --zip-file fileb://function.zip   
+      - run:
+          name: Export Environment Variables from CircleCI Context
+          command: |
+            echo '{' > /tmp/env_vars.json
+            echo 'DEV_APP_DEV_POOL_CLIENT_ID= "'$APP_DEV_POOL_CLIENT_ID'",' >> /tmp/env_vars.json
+            echo 'DEV_CUSTOMER_POOL_CLIENT_ID= "'${DEV_CUSTOMER_POOL_CLIENT_ID}'",' >> /tmp/env_vars.json
+            echo 'DEV_APP_DEV_USER_POOL= "'${APP_DEV_USER_POOL}'",' >> /tmp/env_vars.json
+            echo 'DEV_CUSTOMER_USER_POOL= "'${DEV_CUSTOMER_USER_POOL}'"' >> /tmp/env_vars.json
+            echo '}' >> /tmp/env_vars.json
+            cat /tmp/env_vars.json
+      - run:
+          name: Update Lambda Environment Variables
+          command: |
+
+            # Keys
+            export AWS_ACCESS_KEY_ID=${AWS_DEV_KEY_ID}
+            export AWS_SECRET_ACCESS_KEY=${AWS_DEV_ACCESS_KEY}
+
+            # Ensure AWS CLI is installed
+            which aws
+            # Print environment variables JSON
+            cat /tmp/env_vars.json
+            # Properly escape the JSON string for the AWS CLI
+            # ENV_VARS=$(cat /tmp/env_vars.json | jq -c . | sed 's/"/\\"/g')
+            # ENV_VARS=$(cat /tmp/env_vars.json | jq -c .)
+            ENV_VARS=$(cat /tmp/env_vars.json)
+            echo "Variables=\"$ENV_VARS\""
+            # Update Lambda environment variables
+            aws lambda update-function-configuration \
+              --function-name global_api_gateway_authoriser \
+              --environment Variables="$ENV_VARS"
+      # - run:
+      #     name: Merge Environment Variables
+      #     command: |
+      #       # Add or update specific environment variables
+      #       NEW_ENV_VAR="dev"
+      #       OTHER_ENV_VAR_1="value1"
+      #       OTHER_ENV_VAR_2="value2"
+      #       jq --arg new_var "$NEW_ENV_VAR" --arg other_var1 "$OTHER_ENV_VAR_1" --arg other_var2 "$OTHER_ENV_VAR_2" \
+      #         '. + {"NEW_ENV_VAR": $new_var, "OTHER_ENV_VAR_1": $other_var1, "OTHER_ENV_VAR_2": $other_var2}' /tmp/existing_env_vars.json > /tmp/merged_env_vars.json
+      #       cat /tmp/merged_env_vars.json
+      # - run:
+      #     name: Update Lambda Environment Variables
+      #     command: |
+      #       export AWS_ACCESS_KEY_ID=${AWS_DEV_KEY_ID}
+      #       export AWS_SECRET_ACCESS_KEY=${AWS_DEV_ACCESS_KEY}
+      #       # Ensure AWS CLI is installed
+      #       which aws
+      #       # Print merged environment variables JSON
+      #       cat /tmp/merged_env_vars.json
+      #       # Update Lambda environment variables
+      #       aws lambda update-function-configuration \
+      #         --function-name global_api_gateway_authoriser \
+      #         --environment "Variables=$(cat /tmp/merged_env_vars.json | jq -c .)"
+
+
+  deploy:
+    docker:
+      - image: cimg/node:21.5.0
+    steps:
+      - checkout
+      - run:
+          name: Install Serverless framework
+          command: sudo npm install -g serverless
+      - run:
+          name: Debug Environment Variables
+          command: |
+            echo "AWS_ACCESS_KEY_ID=$AWS_DEV_KEY_ID"
+            echo "AWS_SECRET_ACCESS_KEY=$AWS_DEV_ACCESS_KEY"
+            echo "SERVERLESS_ACCESS_KEY=$SERVERLESS_ACCESS_KEY"
+
+      - run:
+          name: Deploy to AWS
+          command: |
+            sudo serverless deploy --stage dev --verbose
+
+workflows:
+  version: 2
+  pipeline:
+    jobs:
+      - install
+      - test:
+          requires:
+            - install
+      - build:
+          context: 
+            - AWS
+            - LAMBDA
+          requires:
+            - test
+          # filters:
+          #   branches:
+          #     only: dev
