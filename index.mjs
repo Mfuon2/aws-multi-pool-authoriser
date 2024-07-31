@@ -2,28 +2,38 @@ import { CognitoIdentityProviderClient, GetUserCommand } from '@aws-sdk/client-c
 import { CognitoJwtVerifier } from "aws-jwt-verify";
 
 const userPools = {
-    customerPool: `https://cognito-idp.eu-west-1.amazonaws.com/${process.env.CUSTOMER_USER_POOL}`,
-    appDevPool:   `https://cognito-idp.eu-west-1.amazonaws.com/${process.env.APP_DEV_USER_POOL}`,
+    customerPool: `https://cognito-idp.eu-west-1.amazonaws.com/${process.env.DEV_CUSTOMER_USER_POOL}`,
+    appDevPool:   `https://cognito-idp.eu-west-1.amazonaws.com/${process.env.DEV_APP_DEV_USER_POOL}`,
 };
 
 const userPoolClientIds = {
-    customerPoolClientId :  process.env.CUSTOMER_POOL_CLIENT_ID,
-    appDevPool : process.env.APP_DEV_POOL_CLIENT_ID
+    customerPoolClientId :  process.env.DEV_CUSTOMER_POOL_CLIENT_ID,
+    appDevPool : process.env.DEV_APP_DEV_POOL_CLIENT_ID
 }
 
 
 const idTokenVerifier = CognitoJwtVerifier.create([
     {
-        userPoolId: process.env.CUSTOMER_USER_POOL,
+        userPoolId: process.env.DEV_CUSTOMER_USER_POOL,
         tokenUse: "id",
         clientId: userPoolClientIds.customerPoolClientId,
     },
     {
-        userPoolId: process.env.APP_DEV_USER_POOL,
+        userPoolId: process.env.DEV_APP_DEV_USER_POOL,
         tokenUse: "id",
         clientId: userPoolClientIds.appDevPool,
     },
 ]);
+
+const getSuccessResults = () => {
+    return  {"success": true,
+        "message": "Success"}
+}
+
+const getFailResults = (msg) => {
+    return  {"success": false,
+        "message": msg}
+}
 
 
 const isValidToken = async (token) => {
@@ -31,10 +41,10 @@ const isValidToken = async (token) => {
         await idTokenVerifier.verify(
             token
         );
-        return true
+        return getSuccessResults()
     } catch(err) {
         console.log("Token not valid! " + err);
-        return false
+        return getFailResults(err.message)
     }
 }
 
@@ -47,18 +57,21 @@ const handler = async (event) => {
     const token = event.authorizationToken;
     if (!token) {
         return {
-            principalId: 'guest-not-valid-token',
+            principalId: 'userId',
             policyDocument: generatePolicy('Deny', event.methodArn).policyDocument
         };
     }
     const validToken = await isValidToken(token)
 
-    console.log(validToken)
+    console.log(validToken.success)
 
-    if(!validToken){
+    if(!validToken.success){
         return {
-            principalId: 'guest-not-valid',
-            policyDocument: generatePolicy('Deny', event.methodArn).policyDocument
+            principalId: 'userId',
+            policyDocument: generatePolicy('Deny', event.methodArn).policyDocument,
+            context: {
+                message: validToken.message
+            }
         };
     }
 
@@ -69,7 +82,7 @@ const handler = async (event) => {
 
         if (!Object.values(userPools).includes(poolId)) {
             return {
-                principalId: 'guest',
+                principalId: 'userId',
                 policyDocument: generatePolicy('Deny', event.methodArn).policyDocument
             };
         }
@@ -92,7 +105,7 @@ const handler = async (event) => {
     } catch (err) {
         console.error('Error:', err);
         return {
-            principalId: 'guest',
+            principalId: 'userId',
             policyDocument: generatePolicy('Deny', event.methodArn).policyDocument
         };
     }
