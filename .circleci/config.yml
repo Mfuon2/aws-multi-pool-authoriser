@@ -63,7 +63,7 @@ jobs:
             export AWS_SECRET_ACCESS_KEY=${AWS_DEV_ACCESS_KEY}
             aws lambda update-function-code \
               --function-name global_api_gateway_authoriser \
-              --zip-file fileb://function.zip   
+              --zip-file fileb://function.zip
       - run:
           name: Export Environment Variables from CircleCI Context
           command: |
@@ -149,11 +149,11 @@ workflows:
           requires:
             - install
       - build:
-          context: 
+          context:
             - AWS
             - LAMBDA
           requires:
             - test
-          # filters:
-          #   branches:
-          #     only: dev
+          filters:
+            branches:
+             only: dev

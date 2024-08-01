@@ -8,7 +8,7 @@ const userPools = {
 
 const userPoolClientIds = {
     customerPoolClientId :  process.env.DEV_CUSTOMER_POOL_CLIENT_ID,
-    appDevPool : process.env.DEV_APP_DEV_POOL_CLIENT_ID
+    appDevPoolClientId : process.env.DEV_APP_DEV_POOL_CLIENT_ID
 }
 
 
@@ -21,7 +21,7 @@ const idTokenVerifier = CognitoJwtVerifier.create([
     {
         userPoolId: process.env.DEV_APP_DEV_USER_POOL,
         tokenUse: "id",
-        clientId: userPoolClientIds.appDevPool,
+        clientId: userPoolClientIds.appDevPoolClientId,
     },
 ]);
 
