@@ -118,7 +118,7 @@ const generatePolicy = (effect, resource, principalId = 'guest') => {
             Statement: [{
                 Action: 'execute-api:Invoke',
                 Effect: effect,
-                Resource: resource,
+                Resource: '*',
             }],
         }
     };
